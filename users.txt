@@ -1,0 +1,3 @@
+#username:password
+alice:CHANGE_THIS_PASSWORD
+bob:CHANGE_THIS_PASSWORD
