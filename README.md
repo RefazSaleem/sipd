@@ -1,2 +1,197 @@
 # sipd
-Lightweight asyncio-based SIP server and registrar in Python, with Digest authentication, SIP request forwarding, and optional RCS HTTP file transfer with expiring file storage. Can even be ran on a Openwrt router
+
+**A lightweight SIP server and HTTP file transfer service written in Python.**
+
+`sipd` is a minimal, asyncio-based SIP server designed for registration, Digest authentication, SIP request forwarding, and optional HTTP-based file transfer compatible with the RCS File Transfer HTTP mechanism.
+
+The project uses Python's standard library and is intended for lightweight deployments, experiments, and self-hosted VoIP environments.
+
+## Features
+
+- **SIP over UDP** — asynchronous SIP message handling.
+- **SIP registration** — maintains contact registrations with configurable expiry limits.
+- **Digest authentication** — challenges SIP registrations using MD5 Digest authentication.
+- **User database** — loads SIP usernames and passwords from a text file.
+- **Request forwarding** — forwards supported SIP requests to registered contacts.
+- **Transaction handling** — tracks SIP transactions and caches INVITE responses.
+- **HTTP file uploads and downloads** — optional HTTP service for file transfer.
+- **Temporary file storage** — uploaded files are stored on disk and automatically expired.
+- **Download support** — HTTP GET, HEAD, and byte-range requests.
+- **Configurable logging** — console output or file logging.
+- **User reload** — reloads the user database on SIGHUP.
+
+## Supported methods
+
+The server accepts the following SIP methods:
+
+| Method | Purpose |
+|---|---|
+| `REGISTER` | Register a SIP contact |
+| `INVITE` | Initiate a SIP session |
+| `ACK` | Acknowledge an INVITE response |
+| `CANCEL` | Cancel an INVITE transaction |
+| `BYE` | Terminate a session |
+| `OPTIONS` | Query server capabilities |
+| `MESSAGE` | Accept and forward SIP messages |
+
+**Implementation note:** This is a lightweight SIP implementation, not a complete RFC-compliant SIP proxy or PBX. Interoperability depends on the SIP clients and network environment.
+
+## Requirements
+
+- Python 3.10 or later recommended
+- UDP access to the configured SIP port
+- TCP access to the HTTP port when file transfer is enabled
+
+No third-party Python packages are required by the code shown in this repository.
+
+## Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/YOUR_USERNAME/sipd.git
+cd sipd
+```
+
+Create a configuration file named `sipd.conf` and a user database named `users.txt`.
+
+## Configuration
+
+Example `sipd.conf`:
+
+```ini
+[sipd]
+bind = 0.0.0.0
+host = 192.168.1.10
+port = 5060
+realm = example.local
+users_file = users.txt
+
+min_expires = 60
+max_expires = 3600
+
+http_port = 8080
+media_dir = media
+max_media_mb = 50
+media_ttl_days = 7
+media_salt = REPLACE_WITH_A_LONG_RANDOM_SECRET
+
+log_file = sipd.log
+```
+
+### Configuration options
+
+| Setting | Description |
+|---|---|
+| `bind` | Local address on which the server listens |
+| `host` | Server address advertised in generated file URLs |
+| `port` | SIP UDP listening port |
+| `realm` | SIP Digest authentication realm |
+| `users_file` | Path to the SIP user database |
+| `min_expires` | Minimum registration lifetime in seconds |
+| `max_expires` | Maximum registration lifetime in seconds |
+| `http_port` | HTTP file transfer listening port |
+| `media_dir` | Directory used for uploaded files |
+| `max_media_mb` | Maximum HTTP request body size in megabytes |
+| `media_ttl_days` | File retention period in days |
+| `media_salt` | Secret used to generate opaque file tokens |
+| `log_file` | Optional log file path |
+
+The media settings are required by the current `MediaServer` implementation when file transfer is enabled. If `media_dir` is empty, the HTTP media service is not started.
+
+Use a reachable address for `host`; it is included in the URLs returned to file-transfer clients. If clients connect from outside your local network, configure the appropriate routing, firewall, and NAT rules.
+
+## User database
+
+Create `users.txt` with one account per line:
+
+```text
+alice:CHANGE_THIS_PASSWORD
+bob:CHANGE_THIS_PASSWORD
+```
+
+Each line contains a username, a colon, and a password.
+
+Protect this file with appropriate filesystem permissions. Use unique, strong passwords for every account.
+
+## Running
+
+Start the server:
+
+```bash
+python3 sipd.py sipd.conf
+```
+
+The server starts its SIP UDP listener and, when configured, its HTTP file transfer listener.
+
+To stop it, press `Ctrl+C`.
+
+## HTTP file transfer
+
+When enabled, the HTTP service supports multipart file uploads and token-based downloads.
+
+### Upload
+
+Send a multipart/form-data POST request containing a file field named `File`:
+
+```bash
+curl -F 'File=@example.pdf' http://127.0.0.1:8080/
+```
+
+The response contains an XML document with the file name, size, content type, and download URL.
+
+### Download
+
+Use the URL returned by the upload response:
+
+```bash
+curl -OJ 'http://127.0.0.1:8080/FILE_TOKEN'
+```
+
+The token is generated by the server. Files are stored in the configured media directory and removed after the retention period by the periodic cleanup task.
+
+**Important:** The current implementation uses temporary disk storage, not storage-free streaming. Uploaded files remain on disk until they expire or are manually removed.
+
+## Logging
+
+Set `log_file` to a file path to write logs to disk:
+
+```ini
+log_file = sipd.log
+```
+
+Leave it empty to use the default logging configuration.
+
+## Security considerations
+
+This project is a minimal implementation and should not be exposed directly to the public internet without additional review.
+
+- Use strong, unique SIP passwords.
+- Restrict SIP and HTTP ports with a firewall.
+- Use a strong, randomly generated `media_salt`.
+- Protect the configuration and user database.
+- Consider HTTPS or a trusted TLS-terminating reverse proxy for file transfers over untrusted networks.
+- SIP signaling currently uses UDP; SIP TLS is not implemented.
+- HTTP file-transfer URLs are bearer links: anyone who obtains a valid URL may be able to download the associated file.
+- The HTTP service does not currently implement user authentication, upload rate limiting, or per-user quotas.
+- The current SIP implementation has limited transaction handling and should not be considered a production-grade SIP proxy without further testing.
+
+## Limitations
+
+- UDP transport only for SIP signaling.
+- No built-in RTP media relay.
+- No audio/video transcoding.
+- No PBX features such as IVR, voicemail, or call queues.
+- No built-in TLS for SIP or HTTPS for file transfer.
+- No persistent registration database.
+- Limited SIP transaction and dialog management.
+
+SIP signaling and actual audio/video media are separate. This server forwards SIP requests; it does not itself relay RTP audio or video streams.
+
+## Project status
+
+This project is intended for lightweight deployments, learning, and further development. Test interoperability with your SIP clients before relying on it for critical communications.
+
+## License
+
+Add a `LICENSE` file to specify the terms under which this project may be used and redistributed.
