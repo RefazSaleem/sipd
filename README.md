@@ -70,11 +70,7 @@ users_file = users.txt
 min_expires = 60
 max_expires = 3600
 
-http_port = 8080
-media_dir = media
-max_media_mb = 50
-media_ttl_days = 7
-media_salt = REPLACE_WITH_A_LONG_RANDOM_SECRET
+http_port = 8080=
 
 log_file = sipd.log
 ```
@@ -91,10 +87,6 @@ log_file = sipd.log
 | `min_expires` | Minimum registration lifetime in seconds |
 | `max_expires` | Maximum registration lifetime in seconds |
 | `http_port` | HTTP file transfer listening port |
-| `media_dir` | Directory used for uploaded files |
-| `max_media_mb` | Maximum HTTP request body size in megabytes |
-| `media_ttl_days` | File retention period in days |
-| `media_salt` | Secret used to generate opaque file tokens |
 | `log_file` | Optional log file path |
 
 The media settings are required by the current `MediaServer` implementation when file transfer is enabled. If `media_dir` is empty, the HTTP media service is not started.
